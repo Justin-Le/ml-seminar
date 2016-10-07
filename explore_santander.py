@@ -26,6 +26,10 @@ df = pd.DataFrame(train.TARGET.value_counts())
 df['Percentage'] = 100*df['TARGET']/train.shape[0]
 df
 
+########################################
+# Explore var3
+########################################
+
 # var3: nationality of customer
 
 # Ten most common values
@@ -38,17 +42,20 @@ train.loc[train.var3==-999999].shape
 train = train.replace(-999999, 2)
 train.loc[train.var3==-999999].shape
 
-
 # Create new feature: number of zeros in a row
 X = train.iloc[:, :-1]
 y = train.TARGET
 X['n0'] = (X==0).sum(axis=1)
 train['n0'] = X['n0']
 
+########################################
+# Explore num_var4
+########################################
+
 # num_var4: the number of products that a customer has purchased
 train.num_var4.hist(bins=100)
 plt.xlabel('Number of bank products')
-plt.ylabel('Number of customers in train')
+plt.ylabel('Number of customers')
 plt.title('Most customers have 1 product with the bank')
 plt.show()
 
@@ -56,34 +63,41 @@ plt.show()
 sns.FacetGrid(train, hue="TARGET", size=6).map(plt.hist, "num_var4").add_legend()
 plt.title('Unhappy customers purchased fewer products')
 plt.show()
-train[train.TARGET==1].num_var4.hist(bins=6)
-plt.title('Customer satisfaction versus number of products purchased');
 
-train.var38.describe()
+########################################
+# Explore num_var38
+########################################
+
+print train.var38.describe()
 
 # var38 for unhappy customers
-train.loc[train['TARGET']==1, 'var38'].describe()
+print train.loc[train['TARGET']==1, 'var38'].describe()
 
-# Histogram for var38 is not normal-distributed
+# Distribution of var38 is not Gaussian
 train.var38.hist(bins=1000);
+plt.show()
+
+# Show distribution in log-scale to clarify
 train.var38.map(np.log).hist(bins=1000);
+plt.show()
 
 # Identify the anomaly: 
 # a spike between values 11 and 12 of the distribution
 train.var38.map(np.log).mode()
 
 # Most common values for var38
-train.var38.value_counts()
+print train.var38.value_counts()
 
 # Most common value is close to the mean of the other values
-train.var38[train['var38'] != 117310.979016494].mean()
+print train.var38[train['var38'] != 117310.979016494].mean()
 
 # Excluding the most common value causes the
 # distribution to become normal (in log-scale)
-train.loc[~np.isclose(train.var38, 117310.979016), 'var38'].value_counts()
+print train.loc[~np.isclose(train.var38, 117310.979016), 'var38'].value_counts()
 train.loc[~np.isclose(train.var38, 117310.979016), 'var38'].map(np.log).hist(bins=100);
+plt.show()
 
-# The plot suggests that we split var38
+# Split var38
 # var38mc == 1 when var38 has the most common value and 0 otherwise
 # logvar38 = {log(var38) if var38mc == 0; 0 otherwise}
 train['var38mc'] = np.isclose(train.var38, 117310.979016)
@@ -94,10 +108,13 @@ train.loc[train['var38mc'], 'logvar38'] = 0
 print('Number of nan in var38mc', train['var38mc'].isnull().sum())
 print('Number of nan in logvar38',train['logvar38'].isnull().sum())
 
+########################################
+# Explore num_var15
+########################################
+
 # var15 = customer age
 # XGBoost gave high importance to var15
-train['var15'].describe()
-
+print train['var15'].describe()
 train['var15'].hist(bins=100);
 
 sns.FacetGrid(train, hue="TARGET", size=6).map(sns.kdeplot, "var15").add_legend()
@@ -117,6 +134,7 @@ sns.FacetGrid(train[train.var38mc], hue="TARGET", size=6).map(sns.kdeplot, "var1
 
 sns.FacetGrid(train, hue="TARGET", size=6).map(sns.kdeplot, "n0").add_legend()
 plt.title('Unhappy customers have a lot of features that are zero');
+plt.show()
 
 ########################################
 # Feature selection
@@ -134,46 +152,51 @@ selectF_classif = SelectPercentile(f_classif, percentile=p).fit(X, y)
 
 chi2_selected = selectChi2.get_support()
 chi2_selected_features = [ f for i,f in enumerate(X.columns) if chi2_selected[i]]
-print('Chi2 selected {} features {}.'.format(chi2_selected.sum(),
+print('Chi2 selected {} features {}.\n'.format(chi2_selected.sum(),
    chi2_selected_features))
 f_classif_selected = selectF_classif.get_support()
 f_classif_selected_features = [ f for i,f in enumerate(X.columns) if f_classif_selected[i]]
-print('F_classif selected {} features {}.'.format(f_classif_selected.sum(),
+print('F_classif selected {} features {}.\n'.format(f_classif_selected.sum(),
    f_classif_selected_features))
 selected = chi2_selected & f_classif_selected
-print('Chi2 & F_classif selected {} features'.format(selected.sum()))
+print('Chi2 & F_classif selected {} features.\n'.format(selected.sum()))
 features = [ f for f,s in zip(X.columns, selected) if s]
-print (features)
+print 'Randomly selected features:\n' 
+print features
+print '\n' 
 
-# Make a dataframe with the selected features and the target variable
+# Make a dataframe with the selected features and their targets
 X_sel = train[features + ['TARGET']]
+
+########################################
+# Explore var36
+########################################
 
 # var36
 X_sel['var36'].value_counts()
 
-# var36 is most of the times 99 or [0,1,2,3]
-# Let's plot the density in function of the target variabele
-sns.FacetGrid(train, hue="TARGET", size=6)    .map(sns.kdeplot, "var36")    .add_legend()
+# var36 concetrates around 99 and {0,1,2,3}
+sns.FacetGrid(train, hue="TARGET", size=6)    .map(sns.kdeplot, "var36").add_legend()
 plt.title('If var36 is 0,1,2 or 3 => less unhappy customers');
 
-# In above plot we see that the density of unhappy custormers is lower when var36 is not 99
-# var36 in function of var38 (most common value excluded) 
-sns.FacetGrid(train[~train.var38mc], hue="TARGET", size=10)    .map(plt.scatter, "var36", "logvar38")    .add_legend();
+# Density of unhappy custormers is lower when var36 is not 99
+# var36 versus logvar38
+sns.FacetGrid(train[~train.var38mc], hue="TARGET", size=10).map(plt.scatter, "var36", "logvar38").add_legend();
 
-# Let's seperate that in two plots
-sns.FacetGrid(train[(~train.var38mc) & (train.var36 < 4)], hue="TARGET", size=10)    .map(plt.scatter, "var36", "logvar38")    .add_legend()
+# Plot the above separately
+sns.FacetGrid(train[(~train.var38mc) & (train.var36 < 4)], hue="TARGET", size=10).map(plt.scatter, "var36", "logvar38").add_legend()
 plt.title('If var36==0, only happy customers');
 
-# Let's plot the density in function of the target variabele, when var36 = 99
-sns.FacetGrid(train[(~train.var38mc) & (train.var36 ==99)], hue="TARGET", size=6)    .map(sns.kdeplot, "logvar38")    .add_legend();
+# var36 == 99
+sns.FacetGrid(train[(~train.var38mc) & (train.var36 ==99)], hue="TARGET", size=6)    .map(sns.kdeplot, "logvar38").add_legend();
 
 # num_var5
 train.num_var5.value_counts()
 train[train.TARGET==1].num_var5.value_counts()
 train[train.TARGET==0].num_var5.value_counts()
 
-sns.FacetGrid(train, hue="TARGET", size=6).map(plt.hist, "num_var5")    .add_legend();
-sns.FacetGrid(train, hue="TARGET", size=6).map(sns.kdeplot, "num_var5")    .add_legend();
+sns.FacetGrid(train, hue="TARGET", size=6).map(plt.hist, "num_var5").add_legend();
+sns.FacetGrid(train, hue="TARGET", size=6).map(sns.kdeplot, "num_var5").add_legend();
 
 plt.show()
 
