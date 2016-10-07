@@ -18,7 +18,6 @@ train = pd.read_csv("./train.csv")
 test = pd.read_csv("./test.csv")
 
 train.head()
-# Press shift+enter to execute this cell
 
 # Targets: customer satisfaction
 # 0 = happy, 1 = unhappy
@@ -60,10 +59,6 @@ plt.show()
 train[train.TARGET==1].num_var4.hist(bins=6)
 plt.title('Customer satisfaction versus number of products purchased');
 
-# Var38 is suspected to be the mortage value with the bank. 
-# If the mortage is with another bank the national average is used. 
-# See https://www.kaggle.com/c/santander-customer-satisfaction/forums/t/19895/var38-is-mortgage-value
-# [dmi3kno](https://www.kaggle.com/dmi3kno) says that var38 is value of the customer: [https://www.kaggle.com/cast42/santander-customer-satisfaction/exploring-features/comments#115223](https://www.kaggle.com/cast42/santander-customer-satisfaction/exploring-features/comments#115223)
 train.var38.describe()
 
 # var38 for unhappy customers
@@ -88,9 +83,9 @@ train.var38[train['var38'] != 117310.979016494].mean()
 train.loc[~np.isclose(train.var38, 117310.979016), 'var38'].value_counts()
 train.loc[~np.isclose(train.var38, 117310.979016), 'var38'].map(np.log).hist(bins=100);
 
-# Above plot suggest we split up var38 into two variables
+# The plot suggests that we split var38
 # var38mc == 1 when var38 has the most common value and 0 otherwise
-# logvar38 is log transformed feature when var38mc is 0, zero otherwise
+# logvar38 = {log(var38) if var38mc == 0; 0 otherwise}
 train['var38mc'] = np.isclose(train.var38, 117310.979016)
 train['logvar38'] = train.loc[~train['var38mc'], 'var38'].map(np.log)
 train.loc[train['var38mc'], 'logvar38'] = 0
@@ -99,33 +94,28 @@ train.loc[train['var38mc'], 'logvar38'] = 0
 print('Number of nan in var38mc', train['var38mc'].isnull().sum())
 print('Number of nan in logvar38',train['logvar38'].isnull().sum())
 
-# var15
-# The most important feature for XGBoost is var15. According to [a Kaggle form post](https://www.kaggle.com/c/santander-customer-satisfaction/forums/t/19291/data-dictionary/110414#post110414)
-#     var15 is the age of the customer. Let's explore var15
+# var15 = customer age
+# XGBoost gave high importance to var15
 train['var15'].describe()
 
-#Looks more normal, plot the histogram
 train['var15'].hist(bins=100);
 
-# Let's look at the density of the age of happy/unhappy customers
-sns.FacetGrid(train, hue="TARGET", size=6)    .map(sns.kdeplot, "var15")    .add_legend()
+sns.FacetGrid(train, hue="TARGET", size=6).map(sns.kdeplot, "var15").add_legend()
 plt.title('Unhappy customers are slightly older');
 
-# Explore the interaction between var15 (age) and var38
-sns.FacetGrid(train, hue="TARGET", size=10)    .map(plt.scatter, "var38", "var15")    .add_legend();
-
-sns.FacetGrid(train, hue="TARGET", size=10)    .map(plt.scatter, "logvar38", "var15")    .add_legend()
-plt.ylim([0,120]); # Age must be positive ;-)
-
-# Exclude most common value for var38 
-sns.FacetGrid(train[~train.var38mc], hue="TARGET", size=10)    .map(plt.scatter, "logvar38", "var15")    .add_legend()
+# var15 versus var38
+sns.FacetGrid(train, hue="TARGET", size=10).map(plt.scatter, "var38", "var15").add_legend();
+sns.FacetGrid(train, hue="TARGET", size=10).map(plt.scatter, "logvar38", "var15").add_legend()
 plt.ylim([0,120]);
 
-# What is distribution of the age when var38 has it's most common value ?
-sns.FacetGrid(train[train.var38mc], hue="TARGET", size=6)    .map(sns.kdeplot, "var15")    .add_legend();
+# Exclude most common value of var38 
+sns.FacetGrid(train[~train.var38mc], hue="TARGET", size=10).map(plt.scatter, "logvar38", "var15").add_legend()
+plt.ylim([0,120]);
 
-# What is density of n0 ?
-sns.FacetGrid(train, hue="TARGET", size=6)    .map(sns.kdeplot, "n0")    .add_legend()
+# Distribution of the age when var38 has its most common value
+sns.FacetGrid(train[train.var38mc], hue="TARGET", size=6).map(sns.kdeplot, "var15").add_legend();
+
+sns.FacetGrid(train, hue="TARGET", size=6).map(sns.kdeplot, "n0").add_legend()
 plt.title('Unhappy customers have a lot of features that are zero');
 
 ########################################
@@ -198,131 +188,3 @@ plt.show()
 # num_products = num_var4
 # value = var38
 # age = var15
-
-"""
-sns.pairplot(train[['var15','var36','logvar38','TARGET']], hue="TARGET", size=2, diag_kind="kde");
-
-train[['var15','var36','logvar38','TARGET']].boxplot(by="TARGET", figsize=(12, 6));
-
-# A final multivariate visualization technique pandas has is radviz
-# Which puts each feature as a point on a 2D plane, and then simulates
-# having each sample attached to those points through a spring weighted
-# by the relative value for that feature
-from pandas.tools.plotting import radviz
-radviz(train[['var15','var36','logvar38','TARGET']], "TARGET");
-
-# # now look at all 8 features together
-features
-
-radviz(train[features+['TARGET']], "TARGET");
-
-sns.pairplot(train[features+['TARGET']], hue="TARGET", size=2, diag_kind="kde");
-# # Correlations
-cor_mat = X.corr()
-
-f, ax = plt.subplots(figsize=(15, 12))
-# Draw the heatmap with the mask and correct aspect ratio
-sns.heatmap(cor_mat,linewidths=.5, ax=ax);
-
-cor_mat = X_sel.corr()
-
-f, ax = plt.subplots(figsize=(15, 12))
-# Draw the heatmap with the mask and correct aspect ratio
-sns.heatmap(cor_mat,linewidths=.5, ax=ax);
-
-# only important correlations and not auto-correlations
-threshold = 0.7
-important_corrs = (cor_mat[abs(cor_mat) > threshold][cor_mat != 1.0])     .unstack().dropna().to_dict()
-unique_important_corrs = pd.DataFrame(
-    list(set([(tuple(sorted(key)), important_corrs[key]) \
-    for key in important_corrs])), columns=['attribute pair', 'correlation'])
-# sorted by absolute value
-unique_important_corrs = unique_important_corrs.ix[
-    abs(unique_important_corrs['correlation']).argsort()[::-1]]
-unique_important_corrs
-# Recipe from https://github.com/mgalardini/python_plotting_snippets/blob/master/notebooks/clusters.ipynb
-import matplotlib.patches as patches
-from scipy.cluster import hierarchy
-from scipy.stats.mstats import mquantiles
-from scipy.cluster.hierarchy import dendrogram, linkage
-
-# Correlate the data
-# also precompute the linkage
-# so we can pick up the 
-# hierarchical thresholds beforehand
-
-from sklearn.preprocessing import scale
-from sklearn.preprocessing import StandardScaler
-
-# scale to mean 0, variance 1
-train_std = pd.DataFrame(scale(X_sel))
-train_std.columns = X_sel.columns
-m = train_std.corr()
-l = linkage(m, 'ward')
-
-# Plot the clustermap
-# Save the returned object for further plotting
-mclust = sns.clustermap(m,
-               linewidths=0,
-               cmap=plt.get_cmap('RdBu'),
-               vmax=1,
-               vmin=-1,
-               figsize=(14, 14),
-               row_linkage=l,
-               col_linkage=l)
-
-# Threshold 1: median of the
-# distance thresholds computed by scipy
-t = np.median(hierarchy.maxdists(l))
-
-# Plot the clustermap
-# Save the returned object for further plotting
-mclust = sns.clustermap(m,
-               linewidths=0,
-               cmap=plt.get_cmap('RdBu'),
-               vmax=1,
-               vmin=-1,
-               figsize=(12, 12),
-               row_linkage=l,
-               col_linkage=l)
-
-# Draw the threshold lines
-mclust.ax_col_dendrogram.hlines(t,
-                               0,
-                               m.shape[0]*10,
-                               colors='r',
-                               linewidths=2,
-                               zorder=1)
-mclust.ax_row_dendrogram.vlines(t,
-                               0,
-                               m.shape[0]*10,
-                               colors='r',
-                               linewidths=2,
-                               zorder=1)
-
-# Extract the clusters
-clusters = hierarchy.fcluster(l, t, 'distance')
-for c in set(clusters):
-    # Retrieve the position in the clustered matrix
-    index = [x for x in range(m.shape[0])
-             if mclust.data2d.columns[x] in m.index[clusters == c]]
-    # No singletons, please
-    if len(index) == 1:
-        continue
-
-    # Draw a rectangle around the cluster
-    mclust.ax_heatmap.add_patch(
-        patches.Rectangle(
-            (min(index),
-             m.shape[0] - max(index) - 1),
-                len(index),
-                len(index),
-                facecolor='none',
-                edgecolor='r',
-                lw=3)
-        )
-
-plt.title('Cluster matrix')
-
-pass
-"""
